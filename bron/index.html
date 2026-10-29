@@ -228,11 +228,40 @@
 
   /* Kopjes: in-/uitklappen en alles openen */
   .blok h3[data-kopje] { display: flex; align-items: center; gap: 6px; }
-  .blok h3 .pijl { display: inline-block; transition: transform .15s; font-size: 10px; }
+  .blok h3 .pijl { display: inline-block; flex-shrink: 0; transition: transform .15s; font-size: 12px; color: var(--text); opacity: .7; }
+  .blok h3[data-kopje]:hover .pijl { opacity: 1; }
   .blok.dicht h3 .pijl { transform: rotate(-90deg); }
-  .blok.dicht .rij, .blok.dicht .leeg-kopje { display: none; }
+  .blok.dicht .rij, .blok.dicht .leeg-kopje, .blok.dicht .meer-knop { display: none; }
   .blok.dicht h3 { margin-bottom: 0; }
-  .blok h3 .kop-aantal { font-weight: 400; letter-spacing: 0; text-transform: none; }
+  .blok h3 .kop-aantal { font-weight: 400; letter-spacing: 0; text-transform: none; flex-shrink: 0; }
+  .blok h3 .kop-naam {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .blok h3 .alles-open { flex-shrink: 0; }
+
+  /* Lange kopjes: alleen de eerste links tonen, met een knop voor de rest */
+  .meer-knop {
+    display: block;
+    width: calc(100% + 16px);
+    margin: 4px -8px 0;
+    padding: 6px 8px;
+    border: 0;
+    border-top: 1px dashed var(--border);
+    border-radius: 0 0 6px 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .meer-knop:hover, .meer-knop:focus-visible { color: var(--text); background: var(--hover); outline: none; }
   .blok h3 .alles-open {
     margin-left: auto;
     border: 1px solid var(--border);
@@ -370,9 +399,22 @@
     text-decoration: none;
     outline: none;
   }
-  .rij .titel { flex-shrink: 0; }
+  .rij .titel {
+    /* De naam krijgt zijn volle breedte; alleen als hij niet past, loopt hij door naar een tweede regel. */
+    flex: 0 0 auto;
+    max-width: calc(100% - 64px);
+    overflow-wrap: break-word;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
   .rij .url {
-    margin-left: auto;
+    /* Het adres krijgt de ruimte die overblijft en wordt zo nodig ingekort. */
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: right;
     color: var(--muted);
     font-size: 12px;
     overflow: hidden;
@@ -661,6 +703,11 @@
     </div>
     <label class="vink"><input type="checkbox" id="instIcoontjes"> Icoontjes van websites tonen <span style="color: var(--muted)">(haalt bij elke website in je lijst het icoontje op)</span></label>
     <label class="vink"><input type="checkbox" id="instVeelgebruikt"> Favorieten en veelgebruikte links bovenaan tonen</label>
+    <label class="vink">Lange kopjes inkorten tot
+      <select id="instPerKopje" style="width: auto; padding: 3px 6px">
+        <option value="5">5 links</option><option value="8">8 links</option><option value="12">12 links</option><option value="20">20 links</option><option value="0">niet inkorten</option>
+      </select>
+    </label>
     <button type="button" class="knop" id="wisKlikken" style="margin-top: 8px">Klikgeschiedenis wissen</button>
     <h3>Back-upbestand (bijv. in je OneDrive)</h3>
     <p class="uitleg" id="opslagUitleg"></p>
@@ -710,7 +757,7 @@
     <ul>
       <li><b>Rechtsklik</b> op een link, kopje of tab voor alle opties.</li>
       <li><b>Sleep</b> links naar een ander kopje of een andere tab; pak een kopje of tab vast om de volgorde te wijzigen.</li>
-      <li><b>Klik op een kopje</b> om het in of uit te klappen; <b>↗ alle</b> opent alle links van dat kopje.</li>
+      <li><b>Klik op een kopje</b> om het in of uit te klappen; lange kopjes tonen eerst een deel (<b>Toon alle</b>). De pagina onthoudt dit. <b>↗ alle</b> opent alle links van dat kopje.</li>
       <li>Klik op <b>☆</b> om een link aan je favorieten bovenaan toe te voegen.</li>
       <li>Sleep een geëxporteerd bookmarks-bestand of een back-up op de pagina om het te importeren.</li>
       <li>Je links staan in <b>deze browser</b> op deze pc, nergens anders. Zet een back-up in je OneDrive via ☰ → Instellingen.</li>
@@ -933,15 +980,21 @@
     for (const l of links) groepen.get(kopjeVan(l)).push(l);
     return [...groepen].filter(([, ls]) => ls.length || metLegeKopjes).map(([kop, ls]) => {
       const dicht = !term && isIngeklapt(app, kop);
+      // Lange kopjes: eerst een deel tonen. Eén link verbergen heeft geen zin, dus pas vanaf limiet + 2.
+      const max = zichtbaarPerKopje();
+      const lang = !term && max > 0 && ls.length >= max + 2;
+      const uit = lang && isUitgevouwen(app, kop);
+      const zichtbaar = lang && !uit ? ls.slice(0, max) : ls;
       return `<section class="blok${dicht ? " dicht" : ""}" data-tab="${esc(app.naam)}" data-categorie="${esc(kop)}">
-      <h3 data-kopje="${esc(kop)}" title="Klik om in of uit te klappen · sleep om te verplaatsen · rechtsklik voor meer">
+      <h3 data-kopje="${esc(kop)}" title="${esc(kop)} · klik om in of uit te klappen · sleep om te verplaatsen · rechtsklik voor meer">
         <span class="pijl" aria-hidden="true">▾</span>
-        <span>${metAppNaam ? `<span class="app">${markeer(app.naam, term)}</span> · ` : ""}${esc(kop)}</span>
+        <span class="kop-naam">${metAppNaam ? `<span class="app">${markeer(app.naam, term)}</span> · ` : ""}${esc(kop)}</span>
         <span class="kop-aantal">${ls.length}</span>
         ${ls.length > 1 ? `<button type="button" class="alles-open" title="Alle ${ls.length} links openen in nieuwe tabbladen">↗ alle</button>` : ""}
       </h3>
       ${ls.length ? "" : `<div class="leeg-kopje">${omgevingFilter ? `Geen ${esc(omgevingFilter)}-links` : "Nog leeg – sleep een link hierheen"}</div>`}
-      ${ls.map(l => linkRij(app, l, term)).join("")}
+      ${zichtbaar.map(l => linkRij(app, l, term)).join("")}
+      ${lang ? `<button type="button" class="meer-knop" aria-expanded="${uit}">${uit ? "Toon minder ▴" : `Toon alle ${ls.length} ▾`}</button>` : ""}
     </section>`;
     }).join("");
   }
@@ -1959,6 +2012,7 @@
   function openInstellingen() {
     f("instIcoontjes").checked = toonIcoontjes();
     f("instVeelgebruikt").checked = toonSnelbalk();
+    f("instPerKopje").value = String(zichtbaarPerKopje());
     vulBackups();
     vulOpslagInstelling();
     for (const r of document.querySelectorAll('input[name="thema"]')) r.checked = r.value === huidigThema();
@@ -1972,6 +2026,7 @@
     if (e.target.id === "leegTab") vulLeegTab();
     if (e.target.id === "instIcoontjes") { opslag("icoontjes", e.target.checked); render(); }
     if (e.target.id === "instVeelgebruikt") { opslag("snelbalk", e.target.checked); render(); }
+    if (e.target.id === "instPerKopje") { opslag("perKopje", Number(e.target.value)); render(); }
   });
 
   f("leegKnop").addEventListener("click", () => {
@@ -2241,6 +2296,19 @@ ${regels.join("\n")}
   let negeerKopKlik = false;
   const ingeklapt = () => opslag("ingeklapt") || {};
   const isIngeklapt = (app, kop) => (ingeklapt()[app.naam] || []).includes(kop);
+
+  const zichtbaarPerKopje = () => { const n = opslag("perKopje"); return n === null || n === undefined ? 8 : n; };
+  const uitgevouwen = () => opslag("uitgevouwen") || {};
+  const isUitgevouwen = (app, kop) => (uitgevouwen()[app.naam] || []).includes(kop);
+
+  function wisselUitgevouwen(app, kop) {
+    const alle = uitgevouwen();
+    const lijst = new Set(alle[app.naam] || []);
+    if (lijst.has(kop)) lijst.delete(kop); else lijst.add(kop);
+    alle[app.naam] = [...lijst];
+    opslag("uitgevouwen", alle);
+    render();
+  }
 
   function wisselIngeklapt(app, kop) {
     const alle = ingeklapt();
@@ -2542,6 +2610,8 @@ ${regels.join("\n")}
     if (alles) { const b = alles.closest(".blok"); openAlles(zoekApp(b.dataset.tab), b.dataset.categorie); return; }
     const welkomKnop = e.target.closest("[data-welkom]");
     if (welkomKnop) return welkomActie(welkomKnop.dataset.welkom);
+    const meer = e.target.closest(".meer-knop");
+    if (meer) { const b = meer.closest(".blok"); wisselUitgevouwen(zoekApp(b.dataset.tab), b.dataset.categorie); return; }
     const kop = e.target.closest(".blok h3[data-kopje]");
     if (kop && !negeerKopKlik && !zoekveld.value.trim()) {
       const b = kop.closest(".blok");
