@@ -1,0 +1,11 @@
+{
+  "name": "bookmarkpagina",
+  "private": true,
+  "description": "Bouwt de verkleinde index.html (die online staat) uit de leesbare bron/index.html.",
+  "scripts": {
+    "bouw": "node bouw.mjs"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "7.2.0"
+  }
+}

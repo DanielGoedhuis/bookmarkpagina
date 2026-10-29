@@ -28,7 +28,26 @@ downloaden of te installeren: open het adres en begin.
 - **Sneltoetsen**: `Ctrl+K` snel zoeken, `/` zoeken, `1`–`9` tabs, `?` hulp.
 - **Terug naar de browser**: ☰ → *Bookmarks exporteren* en importeer het bestand in Chrome/Edge.
 
-## Versies
+## Snel en ook zonder internet
 
-De pagina zelf staat in deze repository (`index.html`). Een wijziging die hier op `main` komt, staat binnen een
-paar minuten online; gebruikers zien hem zodra ze de pagina verversen. Hun links blijven gewoon staan.
+Na het eerste bezoek bewaart de browser de pagina zelf (niet je gegevens: die staan er los van). Daarna opent hij
+direct, ook als het netwerk traag is of wegvalt. Staat er een nieuwe versie online, dan verschijnt bovenaan
+*"Er is een nieuwe versie van de bookmarkpagina"* met de knop **Vernieuwen**.
+
+## Versies en aanpassen
+
+| Bestand | Wat |
+|---|---|
+| `bron/index.html` | De leesbare pagina: hier pas je iets aan |
+| `index.html` | De verkleinde versie die online staat (wordt gemaakt uit `bron/index.html`) |
+| `sw.js` | Service worker: direct openen, ook zonder internet, en melding bij een nieuwe versie |
+
+Na een aanpassing in `bron/index.html`:
+
+```bash
+npm install
+npm run bouw
+```
+
+Commit daarna `bron/index.html` én `index.html`. Een wijziging die op `main` komt, staat binnen een paar minuten
+online; gebruikers krijgen de melding *Nieuwe versie* en hun links blijven gewoon staan.
