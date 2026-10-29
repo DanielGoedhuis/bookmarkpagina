@@ -1250,7 +1250,13 @@
       ? `Let op: deze link staat al in ${plekken.map(({ app, link }) => `${app.naam} › ${kopjeVan(link)}`).join(", ")}.` : "";
   }
 
+  let voorgesteldeTitel = "";
   f("fUrl").addEventListener("input", () => {
+    const titel = f("fTitel");
+    if (!bewerkId && isUrl(f("fUrl").value.trim()) && (!titel.value.trim() || titel.value === voorgesteldeTitel)) {
+      voorgesteldeTitel = titelUitAdres(f("fUrl").value.trim());
+      titel.value = voorgesteldeTitel;
+    }
     toonDubbelWaarschuwing();
     if (!omgevingHandmatig) f("fOmgeving").value = raadOmgeving(f("fUrl").value);
   });
@@ -1420,7 +1426,87 @@
   }
 
   const isUrl = s => /^https?:\/\/\S+$/i.test(s);
-  const hostTitel = url => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return url; } };
+  // ---- Titel bedenken uit een webadres ----
+  // Wordt gebruikt als er bij het slepen of plakken geen bruikbare titel is (of alleen het adres zelf).
+  // Alles gebeurt in de browser: de website zelf wordt niet benaderd.
+
+  const MERKEN = {
+    "service-now": "ServiceNow", servicenow: "ServiceNow", sharepoint: "SharePoint", docusign: "DocuSign",
+    wdesk: "Workiva", workiva: "Workiva", intralinks: "Intralinks", mendixcloud: "Mendix", mendix: "Mendix",
+    pro4all: "Pro4all", prostream: "Prostream", docstream: "Docstream", dynamosoftware: "Dynamo", reasult: "Reasult",
+    oprognose: "O-Prognose", p8: "P8", transip: "TransIP", topdesk: "TOPdesk", zscaler: "Zscaler", loop: "Loop",
+    outlook: "Outlook", teams: "Teams", office: "Office", microsoft: "Microsoft", azure: "Azure", google: "Google",
+    github: "GitHub", atlassian: "Atlassian", jira: "Jira", confluence: "Confluence", salesforce: "Salesforce",
+    webpower: "Spotler", spotler: "Spotler", esize: "Proactis", proactis: "Proactis", opentext: "OpenText", otcs: "OpenText",
+    xecm: "OpenText", sidn: "SIDN"
+  };
+  const TLD = /^(com|nl|net|org|io|eu|be|de|fr|uk|co|app|cloud|info|biz|shop|online|site)$/;
+  // Technische stukjes van webadressen die niets zeggen over de inhoud.
+  const ALGEMEEN = /^(index|home|default|start|main|pages?|sp|app|apps|web|portal|nl|en|nl-nl|en-us|en-gb|forms|allitems|layouts|_layouts|15|now|nav|ui|classic|params|target|public|tas|ssp|hc|cp|iv|api|v\d+|launchpad|domain|llisapi|llisapi\.dll|dll|otcs|nodes|cgi-bin|personal|documents|shared documents|r|doc)$/i;
+  // Het voorvoegsel van de eigen organisatie weglaten (bijv. "asr-intranet-beleidshuis" → "Intranet beleidshuis").
+  const ORG = /^(a\.?\s?s\.?\s?r\.?|asrnl|asr)(?=[-_. ]|[A-Z]|$)[-_. ]*/i;
+  const INLOGGEN = /^(login|log-in|signin|sign-in|logon|aanmelden|inloggen)$/i;
+
+  // "admin-dashboard" → "Admin dashboard", "brontabellenNieuw" → "Brontabellen nieuw"
+  function mooi(t) {
+    const s = t.replace(ORG, "").replace(/^\d{6,}[-_ ]+/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[-_+.]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  const isId = s => /^[0-9a-f-]{12,}$/i.test(s) || /^\d+$/.test(s) || (s.length > 32 && !/[\s-]/.test(s));
+  const isUrlAchtig = t => /^(https?:\/\/|www\.)/i.test(t) || (!/\s/.test(t) && /\.[a-z]{2,}(\/|$|:)/i.test(t));
+
+  function titelUitAdres(url) {
+    let u;
+    try { u = new URL(url); } catch (e) { return url; }
+    const host = u.hostname.replace(/^www\./, "").toLowerCase();
+    const delen = host.split(".");
+    const zonderTld = delen.filter((d, i) => !(i === delen.length - 1 || (i === delen.length - 2 && TLD.test(d) && delen.length > 2)));
+    let merk = null;
+    if (/-my\.sharepoint\.com$/.test(host)) merk = "OneDrive";
+    for (const d of zonderTld) if (!merk && MERKEN[d]) merk = MERKEN[d];
+    // Herkenbare applicatie in het pad (bijv. /otcs/ → OpenText).
+    for (const s of u.pathname.toLowerCase().split("/")) if (!merk && MERKEN[s]) merk = MERKEN[s];
+    if (!merk) merk = mooi(zonderTld[zonderTld.length - 1] || host);
+
+    const segmenten = u.pathname.split("/").map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } })
+      .map(s => s.replace(/\.(aspx|html?|php|do|jsp|asp)$/i, "")).filter(Boolean);
+    let stuk = "";
+    // Bestandsnaam in de link (SharePoint/OneDrive): die zegt het meest.
+    const bestand = u.searchParams.get("file") || u.searchParams.get("filename");
+    if (bestand) stuk = bestand.replace(/\.[a-z0-9]{2,5}$/i, "");
+    // SharePoint-site: de naam van de site.
+    if (!stuk && merk === "SharePoint") {
+      const i = segmenten.findIndex(s => /^(sites|teams)$/i.test(s));
+      if (i >= 0 && segmenten[i + 1]) stuk = segmenten[i + 1];
+    }
+    // Anders het laatste betekenisvolle deel van het pad, of van een parameter zoals ?r=beheer/brontabellen.
+    if (!stuk) {
+      const kandidaten = [...segmenten];
+      for (const k of ["r", "page", "view", "tab", "route", "id"]) {
+        const v = u.searchParams.get(k);
+        if (v) kandidaten.push(...v.split("/").filter(Boolean));
+      }
+      for (let i = kandidaten.length - 1; i >= 0 && !stuk; i--) {
+        const s = kandidaten[i];
+        if (INLOGGEN.test(s)) stuk = "Inloggen";
+        else if (s.length > 2 && !ALGEMEEN.test(s) && !isId(s) && !ORG.test(s + " ") && !/^(sites|teams|admin)$/i.test(s)) stuk = s;
+      }
+      if (!stuk && segmenten.some(s => /^admin$/i.test(s))) stuk = "Beheer";
+    }
+    stuk = stuk ? (stuk === "Inloggen" ? stuk : mooi(stuk)) : "";
+    if (!stuk || stuk.toLowerCase() === merk.toLowerCase()) return merk;
+    return `${merk} – ${stuk}`.slice(0, 80);
+  }
+
+  // Een meegegeven titel gebruiken als die bruikbaar is; anders er een bedenken uit het adres.
+  function slimTitel(url, kandidaat) {
+    const t = (kandidaat || "").replace(/\s+/g, " ").trim();
+    if (t && !isUrlAchtig(t) && t !== url) return t.slice(0, 120);
+    return titelUitAdres(url);
+  }
+
+  const hostTitel = url => titelUitAdres(url);
 
   // Een map (of meerdere links tegelijk) uit de sleepgegevens lezen. Geeft { naam, links } of null.
   function leesMapSleep(dt) {
@@ -1431,7 +1517,7 @@
         const links = [];
         (function verzamel(n) {
           for (const c of n.children || []) {
-            if (c.uri && isUrl(c.uri)) links.push({ url: c.uri, titel: (c.title || hostTitel(c.uri)).slice(0, 120) });
+            if (c.uri && isUrl(c.uri)) links.push({ url: c.uri, titel: slimTitel(c.uri, c.title) });
             else if (c.children) verzamel(c);
           }
         })(place);
@@ -1443,7 +1529,7 @@
     if (html) {
       const as = [...new DOMParser().parseFromString(html, "text/html").querySelectorAll("a[href]")]
         .filter(a => isUrl(a.getAttribute("href")));
-      if (as.length > 1) return { naam: "", links: as.map(a => ({ url: a.getAttribute("href"), titel: (a.textContent.trim() || hostTitel(a.href)).slice(0, 120) })) };
+      if (as.length > 1) return { naam: "", links: as.map(a => ({ url: a.getAttribute("href"), titel: slimTitel(a.getAttribute("href"), a.textContent).slice(0, 120) })) };
     }
     const regels = (dt.getData("text/uri-list") || dt.getData("text/plain") || "").split(/\r?\n/).map(r => r.trim()).filter(r => r && !r.startsWith("#"));
     const urls = [...new Set(regels.filter(isUrl))];
@@ -1483,10 +1569,7 @@
       titel = (a && (a.textContent.trim() || a.title)) || "";
     }
     if (!titel && tekst && tekst !== url) titel = tekst.split("\n")[0];
-    if (!titel || titel === url) {
-      try { titel = new URL(url).hostname.replace(/^www\./, ""); } catch (e) { titel = url; }
-    }
-    return { url, titel: titel.slice(0, 120) };
+    return { url, titel: slimTitel(url, titel) };
   }
 
   let sleepTeller = 0;
