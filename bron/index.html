@@ -2225,7 +2225,7 @@ ${regels.join("\n")}
   // ---- Hulpfuncties voor links ----
 
   const alleLinks = () => apps.flatMap(app => app.links.map(link => ({ app, link })));
-  const toonIcoontjes = () => opslag("icoontjes") === true;
+  const toonIcoontjes = () => opslag("icoontjes") !== false;
   const toonSnelbalk = () => opslag("snelbalk") !== false;
 
   // Icoon van de website zelf (/favicon.ico), met de eerste letter als reserve als er geen icoon is.

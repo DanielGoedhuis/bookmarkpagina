@@ -9,8 +9,9 @@ downloaden of te installeren: open het adres en begin.
 
 - **In je eigen browser, op je eigen pc.** Ze worden nergens naartoe gestuurd: niet naar GitHub, niet naar de
   maker van de pagina en niet naar collega's. De pagina vertelt andere websites ook niet waar je vandaan komt
-  als je op een link klikt, en haalt standaard geen icoontjes op (aan te zetten in ☰ → *Instellingen*). Deze website levert alleen de (lege) pagina; iedereen die hem
-  opent heeft automatisch zijn eigen, persoonlijke pagina.
+  als je op een link klikt. Voor de icoontjes haalt de browser bij elke website in je lijst alleen het icoontje op
+  (uit te zetten in ☰ → *Instellingen*). Deze website levert alleen de (lege) pagina; iedereen die hem opent heeft
+  automatisch zijn eigen, persoonlijke pagina.
 - **Back-up (aanrader):** ☰ → *Instellingen* → *Nieuw back-upbestand…* en kies een map in je **OneDrive**
   (Chrome/Edge). Elke wijziging wordt dan ook naar dat bestand geschreven, en OneDrive bewaart eerdere versies.
   Na een herstart van de browser klik je één keer op **Back-up bijwerken** om toestemming te geven.
